@@ -5,6 +5,7 @@
 //   vulnclock scan  --sbom sbom.cdx.json [--out findings.json] [--md report.md] [--fail-on none|exploited|critical|high|medium|low]
 //   vulnclock check [dir] [sbom options] [scan options]        (sbom + scan in one go)
 //   vulnclock issue --findings findings.json [--repo owner/name] [--label cra]   (GitHub issue for monitoring, needs gh)
+//   vulnclock upload --findings findings.json --sbom sbom.cdx.json [--version V] [--ref R] [--commit C] [--run-url U]   (to VulnClock Pro, token in VULNCLOCK_TOKEN)
 
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -13,6 +14,7 @@ import path from 'node:path';
 import { generateSbom } from '../lib/sbom.mjs';
 import { scan, failsThreshold } from '../lib/scan.mjs';
 import { toMarkdown, issueBody, idsFromBody } from '../lib/report.mjs';
+import { upload, DEFAULT_URL } from '../lib/upload.mjs';
 
 const FLAGS = new Set(['include-dev', 'no-kev', 'no-euvd', 'quiet']);
 
@@ -116,6 +118,21 @@ function issueCommand(args) {
     return 0;
 }
 
+async function uploadCommand(args) {
+    const result = JSON.parse(fs.readFileSync(args.findings || 'cra-findings.json', 'utf8'));
+    const sbomFile = args.sbom || 'sbom.cdx.json';
+    const sbom = fs.existsSync(sbomFile) ? JSON.parse(fs.readFileSync(sbomFile, 'utf8')) : undefined;
+    const data = await upload({
+        url: args.url || process.env.VULNCLOCK_URL || DEFAULT_URL,
+        token: process.env.VULNCLOCK_TOKEN,
+        result,
+        sbom,
+        meta: { version: args.version, ref: args.ref, commit: args.commit, runUrl: args['run-url'] },
+    });
+    console.log(`Uploaded to VulnClock: ${data.new ?? 0} new, ${data.exploited ?? 0} newly exploited, ${data.gone ?? 0} no longer reported.${data.dashboard ? ` ${data.dashboard}` : ''}`);
+    return 0;
+}
+
 async function main() {
     const args = parse(process.argv.slice(2));
     const cmd = args._[0];
@@ -131,7 +148,8 @@ async function main() {
         return scanCommand(args, bom);
     }
     if (cmd === 'issue') return issueCommand(args);
-    console.log(fs.readFileSync(new URL(import.meta.url), 'utf8').split('\n').slice(1, 8).join('\n').replace(/^\/\/ ?/gm, ''));
+    if (cmd === 'upload') return uploadCommand(args);
+    console.log(fs.readFileSync(new URL(import.meta.url), 'utf8').split('\n').slice(1, 9).join('\n').replace(/^\/\/ ?/gm, ''));
     return cmd ? 2 : 0;
 }
 
