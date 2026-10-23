@@ -153,7 +153,9 @@ async function main() {
     return cmd ? 2 : 0;
 }
 
-main().then((code) => process.exit(code), (err) => {
+// exitCode instead of process.exit(): exiting while an HTTPS connection is still closing crashes Node on Windows
+// (libuv assertion in src\win\async.c), so let the process end on its own.
+main().then((code) => { process.exitCode = code; }, (err) => {
     console.error(`vulnclock: ${err.message}`);
-    process.exit(2);
+    process.exitCode = 2;
 });
