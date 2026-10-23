@@ -51,6 +51,10 @@ Copy [templates/workflows/vulnclock.yml](templates/workflows/vulnclock.yml) to `
 
 For an Electron app add `ship-dev: electron`: Electron is a devDependency, but it ships in every installer.
 
+### Optional: VulnClock Pro dashboard
+
+With `vulnclock-token: ${{ secrets.VULNCLOCK_TOKEN }}` each check is also uploaded to the [VulnClock Pro](https://app.vulnclock.com) dashboard: the Article 14 reporting clock per vulnerability, a decision log you cannot edit afterwards, and drafts for the ENISA Single Reporting Platform. The token is sent only in the Authorization header, the upload uses HTTPS, and a failed upload only warns. Without a token nothing leaves your CI, and the Action works as described above.
+
 ## Limits
 
 - "Exploited in the wild" means listed in CISA KEV or with an exploitation date in ENISA EUVD. Whether it is exploited **in your product** is your decision; the reporting duty is about your product.
