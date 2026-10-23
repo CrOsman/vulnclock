@@ -1,0 +1,69 @@
+# CRA vulnerability handling for a released product (EU Cyber Resilience Act, Annex I Part II and Article 14).
+#   - on every release tag: SBOM of that version, known-vulnerability check, SBOM attached to the release
+#   - every day: the latest release checked again, because new vulnerabilities are published every day
+#   - findings live in one open issue labelled "cra"; "cra-24h" is added when one is exploited in the wild
+# Copy to .github/workflows/vulnclock.yml and adjust the "with:" block.
+
+name: VulnClock (CRA vulnerability check)
+
+on:
+  push:
+    tags: ['v*']
+  schedule:
+    - cron: '23 5 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: cra
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Pick the released version to check
+        id: ref
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            tag="$GITHUB_REF_NAME"
+          else
+            tag=$(gh release list --limit 1 --exclude-drafts --exclude-pre-releases --json tagName -q '.[0].tagName' || true)
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
+          echo "Checking ${tag:-the default branch (no release yet)}"
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.ref.outputs.tag || github.ref }}
+
+      - id: cra
+        uses: CrOsman/vulnclock@v0
+        with:
+          # ship-dev: electron     # dev dependencies that ship inside the product (Electron apps)
+          product-name: My Product
+          product-version: ${{ steps.ref.outputs.version }}
+          manufacturer: Example Ltd
+          issue: 'true'
+
+      - name: Attach the SBOM to the release
+        if: steps.ref.outputs.tag != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ steps.ref.outputs.tag }}
+        run: |
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG is not published yet; tomorrow's run attaches the SBOM."
+          elif gh release view "$TAG" --json assets -q '.assets[].name' | grep -qx 'sbom.cdx.json'; then
+            echo "SBOM already attached to $TAG."
+          else
+            gh release upload "$TAG" sbom.cdx.json
+          fi

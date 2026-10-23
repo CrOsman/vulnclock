@@ -1,0 +1,120 @@
+name: VulnClock
+description: SBOM and known-vulnerability check for the EU Cyber Resilience Act (Annex I Part II), with an exploited-in-the-wild flag for the Article 14 reporting clock.
+author: 3D&TECH LAB d.o.o.
+branding:
+  icon: clock
+  color: red
+
+inputs:
+  path:
+    description: Project directory (package-lock.json, composer.lock, an Android Gradle project and/or an iOS project, also in android/ and ios/App/).
+    default: .
+  ecosystem:
+    description: Comma-separated subset of npm, composer, gradle, cocoapods, spm (default all that are found).
+    default: ''
+  ship-dev:
+    description: Comma-separated dev dependencies that ship inside the product (e.g. electron).
+    default: ''
+  include-dev:
+    description: Put all dev dependencies in the SBOM.
+    default: 'false'
+  product-name:
+    description: Product name in the SBOM (default from package.json / composer.json).
+    default: ''
+  product-version:
+    description: Product version in the SBOM.
+    default: ''
+  manufacturer:
+    description: Manufacturer name in the SBOM.
+    default: ''
+  sbom:
+    description: Use this existing CycloneDX SBOM instead of generating one (e.g. from Syft for other ecosystems).
+    default: ''
+  fail-on:
+    description: none, exploited, critical, high, medium or low.
+    default: none
+  sbom-file:
+    default: sbom.cdx.json
+  findings-file:
+    default: cra-findings.json
+  report-file:
+    default: cra-report.md
+  issue:
+    description: Keep one open GitHub issue (label "cra") with the current findings; comment on new ones, add "cra-24h" when one is exploited in the wild, close it when all clear. Needs permissions issues write.
+    default: 'false'
+  github-token:
+    default: ${{ github.token }}
+  upload-artifact:
+    description: Also keep the SBOM, findings and report as a workflow artifact.
+    default: 'true'
+  artifact-retention-days:
+    default: '14'
+
+outputs:
+  findings:
+    description: Number of known vulnerabilities.
+    value: ${{ steps.check.outputs.findings }}
+  exploited:
+    description: Number of them known to be exploited in the wild.
+    value: ${{ steps.check.outputs.exploited }}
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 22
+
+    - id: check
+      shell: bash
+      env:
+        IN_PATH: ${{ inputs.path }}
+        IN_ECOSYSTEM: ${{ inputs.ecosystem }}
+        IN_SHIP_DEV: ${{ inputs.ship-dev }}
+        IN_INCLUDE_DEV: ${{ inputs.include-dev }}
+        IN_NAME: ${{ inputs.product-name }}
+        IN_VERSION: ${{ inputs.product-version }}
+        IN_MANUFACTURER: ${{ inputs.manufacturer }}
+        IN_SBOM: ${{ inputs.sbom }}
+        IN_FAIL_ON: ${{ inputs.fail-on }}
+        OUT_SBOM: ${{ inputs.sbom-file }}
+        OUT_FINDINGS: ${{ inputs.findings-file }}
+        OUT_REPORT: ${{ inputs.report-file }}
+      run: |
+        set -o pipefail
+        args=()
+        [ -n "$IN_ECOSYSTEM" ] && args+=(--ecosystem "$IN_ECOSYSTEM")
+        [ -n "$IN_SHIP_DEV" ] && args+=(--ship-dev "$IN_SHIP_DEV")
+        [ "$IN_INCLUDE_DEV" = "true" ] && args+=(--include-dev)
+        [ -n "$IN_NAME" ] && args+=(--name "$IN_NAME")
+        [ -n "$IN_VERSION" ] && args+=(--version "$IN_VERSION")
+        [ -n "$IN_MANUFACTURER" ] && args+=(--manufacturer "$IN_MANUFACTURER")
+        status=0
+        if [ -n "$IN_SBOM" ]; then
+          cp "$IN_SBOM" "$OUT_SBOM" 2>/dev/null || true
+          node "$GITHUB_ACTION_PATH/bin/vulnclock.mjs" scan --sbom "$IN_SBOM" --out "$OUT_FINDINGS" --md "$OUT_REPORT" --fail-on "$IN_FAIL_ON" --quiet || status=$?
+        else
+          node "$GITHUB_ACTION_PATH/bin/vulnclock.mjs" check "$IN_PATH" --out "$OUT_SBOM" --findings "$OUT_FINDINGS" --md "$OUT_REPORT" --fail-on "$IN_FAIL_ON" --quiet "${args[@]}" || status=$?
+        fi
+        [ -f "$OUT_REPORT" ] && cat "$OUT_REPORT" >> "$GITHUB_STEP_SUMMARY"
+        exit $status
+
+    - if: always() && inputs.issue == 'true' && hashFiles(inputs.findings-file) != ''
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+        OUT_FINDINGS: ${{ inputs.findings-file }}
+      run: node "$GITHUB_ACTION_PATH/bin/vulnclock.mjs" issue --findings "$OUT_FINDINGS"
+
+    # The SBOM also goes to the release; a full artifact storage quota must not fail the check.
+    - if: always() && inputs.upload-artifact == 'true'
+      continue-on-error: true
+      uses: actions/upload-artifact@v4
+      with:
+        name: vulnclock-sbom-and-findings
+        path: |
+          ${{ inputs.sbom-file }}
+          ${{ inputs.findings-file }}
+          ${{ inputs.report-file }}
+        if-no-files-found: ignore
+        retention-days: ${{ inputs.artifact-retention-days }}

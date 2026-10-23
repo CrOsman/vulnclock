@@ -1,0 +1,4 @@
+node_modules/
+sbom.cdx.json
+cra-findings.json
+cra-report.md

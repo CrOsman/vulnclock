@@ -1,0 +1,346 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VulnClock Report Helper</title>
+<style>
+:root{--bg:#f7f7f5;--card:#fff;--ink:#1d1d1b;--quiet:#5f5e5a;--line:#dddcd6;--accent:#1f5fbf;--bad:#b3261e;--warn:#9a5b00;--ok:#2e7d32;--chip:#eef2fb}
+@media (prefers-color-scheme:dark){:root{--bg:#161615;--card:#1f1f1d;--ink:#ecebe6;--quiet:#a7a59d;--line:#3a3935;--accent:#7aa7f0;--bad:#f28b82;--warn:#f0b35a;--ok:#81c995;--chip:#24324a}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:980px;margin:0 auto;padding:24px 16px 64px}
+h1{font-size:22px;margin:0 0 4px}h2{font-size:17px;margin:0 0 12px}
+p.lead{color:var(--quiet);margin:0 0 20px}
+section{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px;margin:0 0 16px}
+label{display:block;font-weight:600;font-size:13px;margin:12px 0 4px}
+label small{font-weight:400;color:var(--quiet)}
+input[type=text],input[type=datetime-local],select,textarea{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);font:inherit}
+textarea{min-height:84px;resize:vertical}
+.row{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:0 16px}
+.count{float:right;font-weight:400;color:var(--quiet)}.count.over{color:var(--bad)}
+.radio{display:flex;gap:16px;flex-wrap:wrap;margin-top:6px}.radio label{font-weight:400;margin:0;display:flex;gap:6px;align-items:center}
+.states{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:2px 12px;margin-top:6px}.states label{font-weight:400;margin:0;display:flex;gap:6px}
+.deadlines{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+.dl{border:1px solid var(--line);border-radius:8px;padding:12px}.dl b{display:block;font-size:13px}.dl .when{font-size:18px;font-weight:700}.dl .left{font-size:13px;color:var(--quiet)}
+.dl.overdue .left{color:var(--bad);font-weight:600}.dl.soon .left{color:var(--warn);font-weight:600}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+button{font:inherit;padding:7px 12px;border-radius:6px;border:1px solid var(--line);background:var(--card);color:var(--ink);cursor:pointer}
+button.primary,.tabs button[aria-selected=true]{background:var(--accent);border-color:var(--accent);color:#fff}
+.field{border-top:1px solid var(--line);padding:10px 0;display:grid;grid-template-columns:1fr auto;gap:4px 12px}
+.field .name{font-weight:600;font-size:13px}.field .val{grid-column:1/-1;white-space:pre-wrap;color:var(--ink)}
+.field .val.empty{color:var(--quiet);font-style:italic}
+.badge{font-size:11px;padding:1px 6px;border-radius:10px;background:var(--chip);color:var(--ink);margin-left:6px;font-weight:600}
+.badge.req{background:var(--bad);color:#fff}.missing .name{color:var(--bad)}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap}
+.note{font-size:13px;color:var(--quiet)}
+.hidden{display:none}
+a{color:var(--accent)}
+</style>
+</head>
+<body>
+<main>
+<h1>VulnClock Report Helper</h1>
+<p class="lead">Prepares the texts for the ENISA Single Reporting Platform under Article 14 of the Cyber Resilience Act (Regulation (EU) 2024/2847). Fields and limits follow the <a href="https://www.enisa.europa.eu/topics/product-security/single-reporting-platform-srp/cra-srp-glossary2" target="_blank" rel="noopener">SRP glossary</a>. Nothing leaves this page; the draft is kept in this browser only.</p>
+
+<section>
+<h2>1. What happened</h2>
+<div class="radio" id="typeRadio">
+  <label><input type="radio" name="type" value="aev" checked> Actively exploited vulnerability</label>
+  <label><input type="radio" name="type" value="si"> Severe incident affecting the product's security</label>
+</div>
+<div class="row">
+  <div><label for="awareAt">Date and time you became aware (UTC) <small>mandatory</small></label><input type="datetime-local" id="awareAt" data-f="awareAt"></div>
+  <div><label for="occurredAt">Date and time it occurred or started (UTC) <small>optional</small></label><input type="datetime-local" id="occurredAt" data-f="occurredAt"></div>
+  <div class="aev"><label for="fixAt">Date and time a fix or mitigation became available (UTC)</label><input type="datetime-local" id="fixAt" data-f="fixAt"></div>
+  <div class="si hidden"><label for="notifiedAt">Date and time you submitted the 72 h notification (UTC)</label><input type="datetime-local" id="notifiedAt" data-f="notifiedAt"></div>
+</div>
+<p class="note">"Aware" means you have reliable evidence of exploitation (or of the incident), not a first rumour. Write down the moment and the evidence: the clock runs from it.</p>
+</section>
+
+<section>
+<h2>Deadlines</h2>
+<div class="deadlines" id="deadlines"></div>
+</section>
+
+<section>
+<h2>2. Product</h2>
+<label for="cdac">Your CSIRT designated as coordinator <small>main EU establishment; the SRP pre-selects it</small></label>
+<input type="text" id="cdac" data-f="cdac" placeholder="e.g. Croatia: contact via https://ncsc.hr/hr/kontakt">
+<label>Member States where the product is made available <small>required at early warning</small> <button type="button" id="allStates" style="float:right;padding:2px 8px;font-size:12px">All 27</button></label>
+<div class="states" id="states"></div>
+<div class="row">
+  <div><label for="productName">Product name</label><input type="text" id="productName" data-f="productName" maxlength="255"></div>
+  <div><label for="productVersion">Product version(s) affected</label><input type="text" id="productVersion" data-f="productVersion" maxlength="255" placeholder="e.g. 0.12.0 to 0.12.5"></div>
+  <div><label for="component">Affected component <small>name and version</small></label><input type="text" id="component" data-f="component" maxlength="255"></div>
+</div>
+<div class="row">
+  <div><label for="productType">Product type</label><select id="productType" data-f="productType"><option></option><option>Default</option><option>Important</option><option>Critical</option></select></div>
+  <div><label for="productClass">Product class <small>Important only</small></label><select id="productClass" data-f="productClass"><option></option><option>Class I</option><option>Class II</option></select></div>
+  <div><label for="endOfSupport">End of support reached</label><select id="endOfSupport" data-f="endOfSupport"><option></option><option>No</option><option>Yes</option></select></div>
+  <div><label for="mitigationExpected">Mitigating measure expected shortly</label><select id="mitigationExpected" data-f="mitigationExpected"><option></option><option>Yes</option><option>No</option></select></div>
+</div>
+<label for="additionalInfo">Additional information to identify the manufacturer</label><input type="text" id="additionalInfo" data-f="additionalInfo" maxlength="255">
+</section>
+
+<section>
+<h2>3. Details</h2>
+<div class="toolbar"><label style="margin:0" for="importFile" class="note">Fill from a VulnClock findings file:</label><input type="file" id="importFile" accept=".json,application/json"><select id="importPick" class="hidden" style="max-width:420px"></select></div>
+<div id="details"></div>
+</section>
+
+<section>
+<h2>4. Copy into the SRP form</h2>
+<div class="tabs" role="tablist" id="stageTabs"></div>
+<div id="stageView"></div>
+</section>
+
+<section>
+<h2>5. Tell your users</h2>
+<p class="note">Article 14(8): inform the impacted users (and where appropriate all users) and what they can do. A CSIRT may inform them if you do not do it in time.</p>
+<textarea id="advisory" style="min-height:220px"></textarea>
+<div class="toolbar" style="margin-top:8px"><button type="button" id="regenAdvisory">Rebuild from the fields</button><button type="button" data-copy="advisory">Copy</button></div>
+</section>
+
+<section>
+<div class="toolbar">
+  <button type="button" class="primary" id="dlMd">Download report (Markdown)</button>
+  <button type="button" id="dlJson">Save draft (JSON)</button>
+  <label class="note" style="margin:0;display:flex;align-items:center;gap:6px"><span>Load draft</span><input type="file" id="loadJson" accept=".json"></label>
+  <button type="button" id="clearAll">Clear</button>
+</div>
+<p class="note">Submit at <a href="https://portal.cra-srp.enisa.europa.eu/" target="_blank" rel="noopener">portal.cra-srp.enisa.europa.eu</a> as an Assigned Representative with EU Login and MFA. No API exists yet; drafts can be saved there too. Help: <a href="https://www.enisa.europa.eu/topics/product-security/single-reporting-platform-srp/frequently-asked-questions" target="_blank" rel="noopener">SRP FAQ</a> · <a href="https://www.enisa.europa.eu/topics/product-security/single-reporting-platform-srp/list-of-csirts-designated-as-coordinators" target="_blank" rel="noopener">CSIRTs designated as coordinators</a>.</p>
+</section>
+</main>
+
+<script>
+// Fields of the SRP forms (ENISA SRP glossary). Stage codes: R required, M mandatory,
+// O optional, A required if available, C carried forward, '' not applicable at that stage.
+const FIELDS = [
+  {id:'title', no:'2', label:'Title', max:255, kind:'all', st:['R','','']},
+  {id:'summary', no:'3', label:'Summary', max:4000, kind:'all', area:true, st:['R','',''], hint:'Concise overview of the facts, the product and the issue.'},
+  {id:'memberStates', no:'5', label:'Member States where the product is made available', kind:'all', st:['R','',''], virtual:true},
+  {id:'productName', no:'6', label:'Product name', max:255, kind:'all', st:['R','',''], inProduct:true},
+  {id:'productVersion', no:'7', label:'Product version', max:255, kind:'all', st:['R','',''], inProduct:true},
+  {id:'additionalInfo', no:'7a', label:'Additional information', max:255, kind:'all', st:['O','',''], inProduct:true},
+  {id:'productType', no:'8', label:'Product type', kind:'all', st:['O','',''], inProduct:true},
+  {id:'productClass', no:'9', label:'Product class', kind:'all', st:['O','',''], inProduct:true},
+  {id:'endOfSupport', no:'11', label:'End of support indicator', kind:'all', st:['O','',''], inProduct:true},
+  {id:'component', no:'12', label:'Component name', max:255, kind:'all', st:['O','',''], inProduct:true},
+  {id:'mitigationExpected', no:'13', label:'Mitigating measure expected shortly', kind:'all', st:['O','',''], inProduct:true},
+  {id:'cve', no:'v19', label:'CVE ID', max:64, kind:'aev', st:['O','','']},
+  {id:'euvd', no:'v20', label:'EUVD ID', max:64, kind:'aev', st:['O','','']},
+  {id:'awareAtF', no:'v26/i37', label:'Date and time you became aware', kind:'all', st:['M','',''], virtual:true},
+  {id:'occurredAtF', no:'v26a/i38', label:'Date and time it occurred', kind:'all', st:['O','',''], virtual:true},
+  {id:'suspectedMalicious', no:'i31', label:'Incident suspected of unlawful or malicious acts', kind:'si', st:['R','C',''], select:['','Yes','No','Unknown']},
+  {id:'userActionReduce', no:'14', label:'User action able to reduce impact', max:4000, kind:'all', area:true, st:['O','','']},
+  {id:'generalInfo', no:'v21', label:'General information (nature of the exploit and the vulnerability)', max:4000, kind:'aev', area:true, st:['O','R','']},
+  {id:'nature', no:'i32', label:'General information about the nature of the incident', max:4000, kind:'si', area:true, st:['O','R','']},
+  {id:'initialAssessment', no:'i39', label:'Initial assessment of the incident', max:4000, kind:'si', area:true, st:['O','R','']},
+  {id:'attackVector', no:'18', label:'Attack vector', max:255, kind:'all', st:['','O','']},
+  {id:'sensitivity', no:'15', label:'Considered sensitivity of information', max:255, kind:'all', st:['O','O',''], hint:'Why the information should be handled with restriction, if it should.'},
+  {id:'measuresTaken', no:'16', label:'Corrective or mitigating measures taken', max:2000, kind:'all', area:true, st:['O','O','R']},
+  {id:'measuresUsers', no:'17', label:'Corrective or mitigating measures users can take', max:4000, kind:'all', area:true, st:['O','O','R']},
+  {id:'fixAtF', no:'v22', label:'Date when the corrective or mitigating measure became available', kind:'aev', st:['O','O','R'], virtual:true},
+  {id:'updateDetails', no:'v23', label:'Details about the security update or corrective measure', max:2000, kind:'aev', area:true, st:['O','O','R']},
+  {id:'severityAev', no:'v24', label:'Description of the severity of the vulnerability', max:4000, kind:'aev', area:true, st:['O','O','R']},
+  {id:'impactAev', no:'v25', label:'Description of the impact of the vulnerability', max:4000, kind:'aev', area:true, st:['O','O','R']},
+  {id:'actor', no:'v27', label:'Malicious actor that exploited or is exploiting the vulnerability', max:100, kind:'aev', st:['O','O','A']},
+  {id:'mitigationSi', no:'i33', label:'Applied and ongoing mitigation measures', max:4000, kind:'si', area:true, st:['O','O','R']},
+  {id:'severitySi', no:'i34', label:'Detailed description of the severity of the incident', max:4000, kind:'si', area:true, st:['O','O','R']},
+  {id:'impactSi', no:'i35', label:'Detailed description of the impact of the incident', max:4000, kind:'si', area:true, st:['O','O','R']},
+  {id:'rootCause', no:'i36', label:'Type of threat or root cause likely to have triggered the incident', max:255, kind:'si', st:['O','O','R']},
+  {id:'arNote', no:'40', label:'AR note', max:4000, kind:'all', area:true, st:['O','O','O']},
+];
+const STAGES = [{k:0,name:'Early warning (24 h)'},{k:1,name:'Notification (72 h)'},{k:2,name:'Final report'}];
+const STATES = ['Austria','Belgium','Bulgaria','Croatia','Cyprus','Czechia','Denmark','Estonia','Finland','France','Germany','Greece','Hungary','Ireland','Italy','Latvia','Lithuania','Luxembourg','Malta','Netherlands','Poland','Portugal','Romania','Slovakia','Slovenia','Spain','Sweden'];
+const KEY = 'cra-report-helper-draft';
+const $ = (s) => document.querySelector(s);
+let state = {type:'aev', states:[]};
+let stage = 0;
+let findings = [];
+
+function load() { try { const s = JSON.parse(localStorage.getItem(KEY) || 'null'); if (s) state = {...state, ...s}; } catch {} }
+function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {} }
+
+function buildDetails() {
+  const box = $('#details'); box.innerHTML = '';
+  for (const f of FIELDS) {
+    if (f.virtual || f.inProduct) continue;
+    const wrap = document.createElement('div');
+    wrap.dataset.kind = f.kind;
+    const need = f.st.map((c, i) => c && c !== 'O' ? `${STAGES[i].name.split(' (')[0]}: ${({R:'required',M:'mandatory',A:'if available',C:'carried forward'})[c]}` : '').filter(Boolean).join(' · ');
+    wrap.innerHTML = `<label for="f_${f.id}">${f.label} <small>${f.no}${need ? ' · ' + need : ''}</small>${f.max ? `<span class="count" id="c_${f.id}"></span>` : ''}</label>`;
+    let el;
+    if (f.select) { el = document.createElement('select'); el.innerHTML = f.select.map((o) => `<option>${o}</option>`).join(''); }
+    else if (f.area) { el = document.createElement('textarea'); }
+    else { el = document.createElement('input'); el.type = 'text'; }
+    el.id = `f_${f.id}`; el.dataset.f = f.id; if (f.hint) el.placeholder = f.hint;
+    wrap.appendChild(el); box.appendChild(wrap);
+  }
+}
+
+function buildStates() {
+  $('#states').innerHTML = STATES.map((s) => `<label><input type="checkbox" value="${s}"> ${s}</label>`).join('');
+}
+
+function fill() {
+  document.querySelectorAll('[data-f]').forEach((el) => { el.value = state[el.dataset.f] || ''; });
+  document.querySelectorAll('#states input').forEach((el) => { el.checked = state.states.includes(el.value); });
+  document.querySelector(`input[name=type][value=${state.type}]`).checked = true;
+  $('#advisory').value = state.advisory || '';
+}
+
+function fmt(v) { return v ? `${v.replace('T', ' ')} UTC` : ''; }
+function value(f) {
+  if (f.id === 'memberStates') return state.states.join(', ');
+  if (f.id === 'awareAtF') return fmt(state.awareAt);
+  if (f.id === 'occurredAtF') return fmt(state.occurredAt);
+  if (f.id === 'fixAtF') return fmt(state.fixAt);
+  return (state[f.id] || '').trim();
+}
+
+function utc(v) { return v ? new Date(v + ':00Z') : null; }
+function addMonth(d) { const x = new Date(d); x.setUTCMonth(x.getUTCMonth() + 1); return x; }
+function left(due) {
+  const ms = due - Date.now(), abs = Math.abs(ms), h = Math.floor(abs / 36e5), m = Math.floor((abs % 36e5) / 6e4), d = Math.floor(h / 24);
+  const t = d >= 2 ? `${d} days ${h % 24} h` : `${h} h ${m} min`;
+  return ms < 0 ? {text:`overdue by ${t}`, cls:'overdue'} : {text:`${t} left`, cls: ms < 6 * 36e5 ? 'soon' : ''};
+}
+
+function renderDeadlines() {
+  const aware = utc(state.awareAt);
+  const cards = [];
+  const card = (name, due, why) => {
+    if (!due) return `<div class="dl"><b>${name}</b><div class="when">-</div><div class="left">${why}</div></div>`;
+    const l = left(due);
+    return `<div class="dl ${l.cls}"><b>${name}</b><div class="when">${due.toISOString().slice(0, 16).replace('T', ' ')} UTC</div><div class="left">${l.text}</div></div>`;
+  };
+  cards.push(card('Early warning', aware && new Date(+aware + 24 * 36e5), 'set the moment you became aware'));
+  cards.push(card(state.type === 'aev' ? 'Vulnerability notification' : 'Incident notification', aware && new Date(+aware + 72 * 36e5), 'set the moment you became aware'));
+  if (state.type === 'aev') { const fix = utc(state.fixAt); cards.push(card('Final report', fix && new Date(+fix + 14 * 864e5), '14 days after a fix or mitigation is available')); }
+  else { const n = utc(state.notifiedAt); cards.push(card('Final report', n && addMonth(n), 'one month after the 72 h notification')); }
+  $('#deadlines').innerHTML = cards.join('');
+}
+
+function visible(f) { return f.kind === 'all' || f.kind === state.type; }
+
+function renderStage() {
+  $('#stageTabs').innerHTML = STAGES.map((s) => `<button type="button" role="tab" aria-selected="${s.k === stage}" data-stage="${s.k}">${s.name}</button>`).join('');
+  const rows = FIELDS.filter((f) => visible(f) && f.st[stage]).map((f) => {
+    const code = f.st[stage], v = value(f), req = code === 'R' || code === 'M';
+    const badge = {R:'required',M:'mandatory',A:'required if available',O:'optional',C:'carried forward'}[code];
+    const over = f.max && v.length > f.max;
+    return `<div class="field ${req && !v ? 'missing' : ''}"><div class="name">${f.label} <span class="badge ${req ? 'req' : ''}">${badge}</span>${over ? ` <span class="badge req">${v.length}/${f.max} chars</span>` : ''}</div><button type="button" data-copyval="${f.id}">Copy</button><div class="val ${v ? '' : 'empty'}">${v ? escapeHtml(v) : 'empty'}</div></div>`;
+  });
+  const missing = FIELDS.filter((f) => visible(f) && ['R','M'].includes(f.st[stage]) && !value(f)).length;
+  $('#stageView').innerHTML = `<p class="note">${missing ? `${missing} required field${missing > 1 ? 's' : ''} still empty for this stage.` : 'All required fields of this stage are filled.'} Fields not listed here are not asked at this stage.</p>` + rows.join('');
+}
+
+function escapeHtml(s) { return s.replace(/[&<>"]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]); }
+
+function counters() {
+  for (const f of FIELDS) {
+    const c = document.getElementById(`c_${f.id}`); if (!c) continue;
+    const n = (state[f.id] || '').length; c.textContent = `${n}/${f.max}`; c.classList.toggle('over', n > f.max);
+  }
+}
+
+function applyType() {
+  document.querySelectorAll('[data-kind]').forEach((el) => el.classList.toggle('hidden', !(el.dataset.kind === 'all' || el.dataset.kind === state.type)));
+  document.querySelectorAll('.aev').forEach((el) => el.classList.toggle('hidden', state.type !== 'aev'));
+  document.querySelectorAll('.si').forEach((el) => el.classList.toggle('hidden', state.type !== 'si'));
+}
+
+function advisoryText() {
+  const product = [state.productName, state.productVersion].filter(Boolean).join(' ');
+  const aev = state.type === 'aev';
+  const ids = [state.cve, state.euvd].filter(Boolean).join(', ');
+  return [
+    `Security advisory: ${state.title || (aev ? 'actively exploited vulnerability' : 'security incident')}${product ? ` in ${product}` : ''}`,
+    '',
+    aev ? `We are aware that a vulnerability${ids ? ` (${ids})` : ''} in ${product || 'our product'} is being actively exploited.` : `We are handling a security incident affecting ${product || 'our product'}.`,
+    state.component ? `Affected component: ${state.component}.` : '',
+    '',
+    'What you should do:',
+    (state.measuresUsers || state.userActionReduce || '- (describe the steps users can take)').trim(),
+    '',
+    state.updateDetails ? `Security update: ${state.updateDetails.trim()}` : (state.mitigationExpected === 'Yes' ? 'A security update is being prepared; we will notify you when it is available.' : ''),
+    '',
+    'Contact for security questions and vulnerability reports: (your single point of contact).',
+  ].filter((l, i, a) => !(l === '' && a[i - 1] === '')).join('\n').trim();
+}
+
+function render() { renderDeadlines(); renderStage(); counters(); }
+
+function markdown() {
+  const out = [`# CRA ${state.type === 'aev' ? 'actively exploited vulnerability' : 'severe incident'} report: ${state.title || ''}`, ''];
+  out.push(`Aware: ${fmt(state.awareAt) || '-'}  `, `CSIRT designated as coordinator: ${state.cdac || '-'}`, '');
+  for (const s of STAGES) {
+    out.push(`## ${s.name}`, '');
+    for (const f of FIELDS.filter((f) => visible(f) && f.st[s.k])) out.push(`**${f.label}** (${f.no}): ${value(f) || '-'}`, '');
+  }
+  out.push('## User advisory', '', $('#advisory').value || advisoryText(), '');
+  return out.join('\n');
+}
+
+function download(name, text, type) {
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], {type})); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+function copy(text) { navigator.clipboard?.writeText(text).catch(() => {}); }
+
+function fromFinding(f) {
+  const cve = [f.id, ...(f.aliases || [])].find((x) => /^CVE-/.test(x)) || '';
+  state.cve = cve; state.euvd = f.euvd || state.euvd || '';
+  state.component = `${f.component} ${f.version}`;
+  state.title = state.title || `${f.summary} (${cve || f.id})`.slice(0, 255);
+  state.severityAev = state.severityAev || `${f.severity}${f.score ? ` (CVSS ${f.score}${f.vector ? `, ${f.vector}` : ''})` : ''}. ${f.summary}. Advisory: ${f.url}`;
+  if (f.fixed?.length) state.measuresUsers = state.measuresUsers || `Update to a version of the product that contains ${f.component} ${f.fixed.join(' or ')} or later.`;
+  if (f.exploited) state.generalInfo = state.generalInfo || `Known to be exploited in the wild (${f.exploited.source}, since ${f.exploited.since}).`;
+  fill(); render();
+}
+
+document.addEventListener('input', (e) => {
+  const el = e.target;
+  if (el.dataset.f) { state[el.dataset.f] = el.value; }
+  if (el.name === 'type') { state.type = el.value; applyType(); }
+  if (el.closest('#states')) state.states = [...document.querySelectorAll('#states input:checked')].map((x) => x.value);
+  if (el.id === 'advisory') state.advisory = el.value;
+  save(); render();
+});
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('button'); if (!b) return;
+  if (b.dataset.stage) { stage = +b.dataset.stage; renderStage(); }
+  if (b.dataset.copyval) { const f = FIELDS.find((x) => x.id === b.dataset.copyval); copy(value(f)); b.textContent = 'Copied'; setTimeout(() => (b.textContent = 'Copy'), 1200); }
+  if (b.dataset.copy) copy($('#' + b.dataset.copy).value);
+  if (b.id === 'allStates') { state.states = STATES.slice(); fill(); save(); render(); }
+  if (b.id === 'regenAdvisory') { state.advisory = advisoryText(); $('#advisory').value = state.advisory; save(); }
+  if (b.id === 'dlMd') download(`cra-report-${(state.awareAt || 'draft').slice(0, 10)}.md`, markdown(), 'text/markdown');
+  if (b.id === 'dlJson') download('cra-report-draft.json', JSON.stringify(state, null, 2), 'application/json');
+  if (b.id === 'clearAll' && confirm('Clear the whole draft?')) { state = {type:'aev', states:[]}; save(); fill(); applyType(); render(); }
+});
+$('#importFile').addEventListener('change', async (e) => {
+  const file = e.target.files[0]; if (!file) return;
+  try {
+    const data = JSON.parse(await file.text());
+    findings = data.findings || [];
+    if (data.product?.name && !state.productName) state.productName = data.product.name;
+    if (data.product?.version && !state.productVersion) state.productVersion = data.product.version;
+    const pick = $('#importPick');
+    pick.innerHTML = '<option value="">Pick a finding...</option>' + findings.map((f, i) => `<option value="${i}">${f.exploited ? '[exploited] ' : ''}${f.severity} ${f.component} ${f.version}: ${escapeHtml(f.id)}</option>`).join('');
+    pick.classList.toggle('hidden', !findings.length);
+    save(); fill();
+  } catch { alert('Not a VulnClock findings file.'); }
+});
+$('#importPick').addEventListener('change', (e) => { const f = findings[+e.target.value]; if (f) { fromFinding(f); save(); } });
+$('#loadJson').addEventListener('change', async (e) => {
+  const file = e.target.files[0]; if (!file) return;
+  try { state = {type:'aev', states:[], ...JSON.parse(await file.text())}; save(); fill(); applyType(); render(); } catch { alert('Not a draft file.'); }
+});
+
+load(); buildStates(); buildDetails(); fill(); applyType(); render();
+setInterval(renderDeadlines, 60000);
+</script>
+</body>
+</html>

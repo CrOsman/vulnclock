@@ -1,0 +1,24 @@
+{
+  "name": "vulnclock",
+  "version": "0.2.1",
+  "private": true,
+  "description": "VulnClock by 3D&TECH LAB: SBOM, vulnerability monitoring and reporting help for the EU Cyber Resilience Act (Regulation (EU) 2024/2847), for small software makers.",
+  "type": "module",
+  "bin": {
+    "vulnclock": "bin/vulnclock.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "node --test \"test/*.test.mjs\""
+  },
+  "author": "3D&TECH LAB d.o.o.",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/CrOsman/vulnclock.git"
+  },
+  "bugs": "https://github.com/CrOsman/vulnclock/issues",
+  "keywords": ["cyber-resilience-act", "cra", "sbom", "cyclonedx", "vulnerability", "osv", "github-action", "android", "ios"]
+}
