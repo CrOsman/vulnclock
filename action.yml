@@ -1,5 +1,5 @@
-name: VulnClock
-description: SBOM and known-vulnerability check for the EU Cyber Resilience Act (Annex I Part II), with an exploited-in-the-wild flag for the Article 14 reporting clock.
+name: VulnClock CRA Check
+description: SBOM and known-vulnerability check for the EU Cyber Resilience Act, with an exploited-in-the-wild flag for 24 h reporting.
 author: 3D&TECH LAB d.o.o.
 branding:
   icon: clock
