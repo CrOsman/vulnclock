@@ -1,6 +1,6 @@
 {
   "name": "vulnclock",
-  "version": "0.2.2",
+  "version": "0.3.0",
   "private": true,
   "description": "VulnClock by 3D&TECH LAB: SBOM, vulnerability monitoring and reporting help for the EU Cyber Resilience Act (Regulation (EU) 2024/2847), for small software makers.",
   "type": "module",
